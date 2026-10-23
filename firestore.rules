@@ -1,0 +1,17 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /vendas/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.vendedor in ['CAIQUE', 'DANIELLE']
+        && request.resource.data.valor is number
+        && request.resource.data.valor > 0
+        && request.resource.data.seguro is bool
+        && request.resource.data.modelo is string
+        && request.resource.data.modelo.size() > 0
+        && request.resource.data.modelo.size() < 100;
+      allow delete: if true;
+      allow update: if false;
+    }
+  }
+}
