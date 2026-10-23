@@ -8,6 +8,7 @@ import {
 import { db, firebaseConfigurado } from "./firebase";
 import {
   PERFIS, PERIODOS, brl, hoje, mesDe, lerValor, resumo, soma, somaDias, dataBR, noPeriodo, exportarCSV,
+  diasAte, linkWhatsApp, PRAZO_SEGURO,
 } from "./util";
 
 const COR = { CAIQUE: "#1d4ed8", DANIELLE: "#e11d74", JUNTOS: "#14232b" };
@@ -97,6 +98,22 @@ export default function App() {
       }
     }
     return out.sort((a, b) => a.quando.localeCompare(b.quando));
+  }, [doVendedor]);
+
+  // Seguro: quem comprou sem seguro tem 30 dias; avisa no dia 7 e no dia 25
+  const tarefasSeguro = useMemo(() => {
+    const out = [];
+    for (const v of doVendedor) {
+      if (v.seguro) continue;
+      const limite = somaDias(v.data, PRAZO_SEGURO);
+      if (limite < hoje()) continue;
+      for (const [k, n] of [["s7", 7], ["s25", 25]]) {
+        if (v.seguroLembrete?.[k]) continue;
+        const quando = somaDias(v.data, n);
+        if (quando <= hoje()) { out.push({ v, k, n, limite }); break; }
+      }
+    }
+    return out.sort((a, b) => a.limite.localeCompare(b.limite));
   }, [doVendedor]);
 
   function editar(v) {
@@ -222,6 +239,35 @@ export default function App() {
                   <button onClick={() => updateDoc(doc(db, "vendas", v.id), { [`posVenda.${k}`]: true })}>Feito</button>
                 </li>
               ))}
+            </ul>
+          )}
+        </div>
+        <div className="painel">
+          <h2>Lembrete de seguro</h2>
+          {tarefasSeguro.length === 0 ? <Vazio t="Nenhum cliente para avisar sobre o seguro." /> : (
+            <ul className="tarefas">
+              {tarefasSeguro.map(({ v, k, limite }) => {
+                const link = linkWhatsApp(v);
+                const dias = diasAte(limite);
+                return (
+                  <li key={v.id + k}>
+                    <span>
+                      <b>{v.cliente || "Cliente sem nome"}</b> · {v.modelo}
+                      <small>
+                        Prazo até {dataBR(limite)} ({dias === 0 ? "termina hoje" : `${dias} dias restantes`})
+                        {vista === "JUNTOS" ? ` · ${v.vendedor}` : ""}
+                      </small>
+                    </span>
+                    <span className="btns">
+                      {link
+                        ? <a className="wa" href={link} target="_blank" rel="noreferrer">WhatsApp</a>
+                        : <small>Sem telefone: use Editar</small>}
+                      <button onClick={() => updateDoc(doc(db, "vendas", v.id), { [`seguroLembrete.${k}`]: true })}>Já avisei</button>
+                      <button onClick={() => updateDoc(doc(db, "vendas", v.id), { seguro: true })}>Fechou seguro</button>
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -384,6 +430,7 @@ function MetasForm({ config }) {
 function Formulario({ vendedor, editando, onFim }) {
   const [modelo, setModelo] = useState(editando?.modelo || "");
   const [cliente, setCliente] = useState(editando?.cliente || "");
+  const [telefone, setTelefone] = useState(editando?.telefone || "");
   const [valorTxt, setValorTxt] = useState(editando ? String(editando.valor).replace(".", ",") : "");
   const [seguro, setSeguro] = useState(editando?.seguro || false);
   const [data, setData] = useState(editando?.data || hoje());
@@ -396,14 +443,14 @@ function Formulario({ vendedor, editando, onFim }) {
     setMsg("");
     if (!modelo.trim() || valor <= 0) { setMsg("Informe a moto e o valor da venda."); return; }
     setSalvando(true);
-    const dados = { modelo: modelo.trim(), cliente: cliente.trim(), valor, seguro, data };
+    const dados = { modelo: modelo.trim(), cliente: cliente.trim(), telefone: telefone.trim(), valor, seguro, data };
     try {
       if (editando) {
         await updateDoc(doc(db, "vendas", editando.id), dados);
         onFim();
       } else {
         await addDoc(collection(db, "vendas"), { ...dados, vendedor, posVenda: {}, criadoEm: serverTimestamp() });
-        setModelo(""); setCliente(""); setValorTxt(""); setSeguro(false); setData(hoje());
+        setModelo(""); setCliente(""); setTelefone(""); setValorTxt(""); setSeguro(false); setData(hoje());
         setMsg("Venda salva.");
       }
     } catch (err) { console.error(err); setMsg("Não foi possível salvar. Tente de novo."); }
@@ -416,6 +463,9 @@ function Formulario({ vendedor, editando, onFim }) {
       <div className="campos">
         <label>Nome do cliente
           <input value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Ex.: João Silva" maxLength={99} />
+        </label>
+        <label>Telefone do cliente (WhatsApp)
+          <input value={telefone} onChange={(e) => setTelefone(e.target.value)} inputMode="tel" placeholder="Ex.: (24) 99999-9999" maxLength={29} />
         </label>
         <label>Moto
           <input value={modelo} onChange={(e) => setModelo(e.target.value)} placeholder="Ex.: Scooter elétrica 2000W" maxLength={99} />

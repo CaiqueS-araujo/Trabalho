@@ -47,6 +47,8 @@ git push -u origin main
 - **Este mês:** comparativo com o mês anterior e progresso da meta.
 - **Ranking do mês** entre CAIQUE e DANIELLE.
 - **Pós-venda:** lembretes para 7, 30 e 90 dias depois da venda (vencidos nos últimos 30 dias e os próximos 3 dias). Clique em "Feito" para baixar o lembrete.
+- **Lembrete de seguro:** para quem comprou sem seguro, avisa no 7º e no 25º dia que o cliente tem 30 dias para contratar o seguro com preço de moto nova. O botão "WhatsApp" abre a conversa com a mensagem pronta (você pode editar antes de enviar). "Já avisei" baixa o lembrete e "Fechou seguro" marca a venda como com seguro.
+- **Telefone do cliente:** preencha ao registrar a venda; sem ele, o botão do WhatsApp não aparece.
 - **Filtro por período**, **modelos mais vendidos** e **edição** de vendas.
 - **Baixar para Excel:** gera um arquivo `.csv` que abre direto no Excel.
 

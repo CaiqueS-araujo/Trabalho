@@ -66,10 +66,10 @@ export function noPeriodo(v, periodo) {
 export function exportarCSV(lista, comissaoPct) {
   const aspas = (t) => `"${String(t ?? "").replace(/"/g, '""')}"`;
   const num = (n) => n.toFixed(2).replace(".", ",");
-  const linhas = [["Data", "Vendedor", "Cliente", "Moto", "Seguro", "Valor", "Comissão estimada"]];
+  const linhas = [["Data", "Vendedor", "Cliente", "Telefone", "Moto", "Seguro", "Valor", "Comissão estimada"]];
   for (const v of lista) {
     linhas.push([
-      dataBR(v.data), v.vendedor, v.cliente || "", v.modelo,
+      dataBR(v.data), v.vendedor, v.cliente || "", v.telefone || "", v.modelo,
       v.seguro ? "Com seguro" : "Sem seguro", num(v.valor), num((v.valor * comissaoPct) / 100),
     ]);
   }
@@ -79,4 +79,26 @@ export function exportarCSV(lista, comissaoPct) {
   a.download = `vendas-${hoje()}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+export const PRAZO_SEGURO = 30; // dias para fechar o seguro com preço de moto nova
+
+export function diasAte(dataIso) {
+  const a = new Date(hoje() + "T12:00:00"), b = new Date(dataIso + "T12:00:00");
+  return Math.round((b - a) / 86400000);
+}
+
+// Link do WhatsApp com a mensagem de seguro já escrita (você edita antes de enviar)
+export function linkWhatsApp(v) {
+  let n = (v.telefone || "").replace(/\D/g, "").replace(/^0+/, "");
+  if (n.length <= 11) n = "55" + n;
+  if (n.length < 12 || n.length > 13) return null;
+  const nome = (v.cliente || "").trim().split(" ")[0];
+  const eu = v.vendedor.charAt(0) + v.vendedor.slice(1).toLowerCase();
+  const limite = dataBR(somaDias(v.data, PRAZO_SEGURO));
+  const texto =
+    `Olá${nome ? ", " + nome : ""}! Aqui é ${eu}, da Moto Chefe Petrópolis. Tudo bem? ` +
+    `Passando para lembrar que você pode contratar o seguro da sua ${v.modelo} até ${limite}, ` +
+    `com o preço de moto nova. Se quiser, faço uma simulação para você agora. 😊`;
+  return `https://wa.me/${n}?text=${encodeURIComponent(texto)}`;
 }

@@ -120,3 +120,7 @@ select { font: inherit; padding: 8px 10px; border: 1px solid #b9c4cc; border-rad
 .lista-topo h2 { margin: 0; }
 details.painel summary { cursor: pointer; font-weight: 700; font-family: "Bricolage Grotesque", system-ui, sans-serif; font-size: 18px; }
 details.painel form { margin-top: 14px; }
+
+.tarefas .btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+a.wa { font-size: 14px; font-weight: 600; padding: 7px 12px; border-radius: 8px; background: #15803d; color: #fff; text-decoration: none; }
+a.wa:hover { background: #166534; }
