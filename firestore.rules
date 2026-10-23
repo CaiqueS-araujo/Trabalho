@@ -1,17 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function vendaValida(d) {
+      return d.vendedor in ['CAIQUE', 'DANIELLE']
+        && d.valor is number && d.valor > 0
+        && d.seguro is bool
+        && d.modelo is string && d.modelo.size() > 0 && d.modelo.size() < 100
+        && (!('cliente' in d) || (d.cliente is string && d.cliente.size() < 100));
+    }
+
     match /vendas/{id} {
       allow read: if true;
-      allow create: if request.resource.data.vendedor in ['CAIQUE', 'DANIELLE']
-        && request.resource.data.valor is number
-        && request.resource.data.valor > 0
-        && request.resource.data.seguro is bool
-        && request.resource.data.modelo is string
-        && request.resource.data.modelo.size() > 0
-        && request.resource.data.modelo.size() < 100;
+      allow create: if vendaValida(request.resource.data);
+      allow update: if vendaValida(request.resource.data)
+        && request.resource.data.vendedor == resource.data.vendedor;
       allow delete: if true;
-      allow update: if false;
+    }
+
+    match /config/{id} {
+      allow read: if true;
+      allow write: if id == 'geral'
+        && request.resource.data.keys().hasOnly(['metaLoja', 'metaCAIQUE', 'metaDANIELLE', 'comissao'])
+        && request.resource.data.metaLoja is number && request.resource.data.metaLoja >= 0
+        && request.resource.data.metaCAIQUE is number && request.resource.data.metaCAIQUE >= 0
+        && request.resource.data.metaDANIELLE is number && request.resource.data.metaDANIELLE >= 0
+        && request.resource.data.comissao is number
+        && request.resource.data.comissao >= 0 && request.resource.data.comissao <= 100;
     }
   }
 }

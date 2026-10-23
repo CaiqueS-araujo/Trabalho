@@ -41,6 +41,17 @@ git push -u origin main
 3. Em **Environment Variables**, cadastre as 6 variáveis do `.env.example` com os valores do Firebase.
 4. Clique em **Deploy**. Cada `git push` na `main` publica de novo.
 
+## Recursos
+
+- **Metas e comissão:** abra "Metas e comissão" no painel para definir a meta mensal da loja, do CAIQUE e da DANIELLE e o percentual de comissão. Isso cria o documento `config/geral` no Firestore.
+- **Este mês:** comparativo com o mês anterior e progresso da meta.
+- **Ranking do mês** entre CAIQUE e DANIELLE.
+- **Pós-venda:** lembretes para 7, 30 e 90 dias depois da venda (vencidos nos últimos 30 dias e os próximos 3 dias). Clique em "Feito" para baixar o lembrete.
+- **Filtro por período**, **modelos mais vendidos** e **edição** de vendas.
+- **Baixar para Excel:** gera um arquivo `.csv` que abre direto no Excel.
+
+Depois de atualizar o projeto, **publique de novo o conteúdo de `firestore.rules`** no console do Firebase (aba Regras). Sem isso, editar vendas e salvar metas será bloqueado.
+
 ## Atenção sobre segurança
 
 Não há login: quem tiver o link consegue ver, adicionar e excluir vendas.

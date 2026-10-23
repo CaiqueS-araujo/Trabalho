@@ -94,3 +94,29 @@ th { color: var(--mudo); font-weight: 600; font-size: 13px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* novidades */
+.filtro { display: flex; justify-content: flex-end; }
+.filtro label { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+select { font: inherit; padding: 8px 10px; border: 1px solid #b9c4cc; border-radius: 8px; background: #fff; color: var(--tinta); }
+.grande { margin: 0; font-family: "Bricolage Grotesque", system-ui, sans-serif; font-size: 32px; font-weight: 800; }
+.meta-txt { margin: 12px 0 4px; font-weight: 600; font-size: 14px; }
+.painel .barra span { background: var(--cor); }
+.rank { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rank li { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 8px; border-left: 5px solid var(--cor); padding: 6px 0 6px 10px; }
+.pos { font-family: "Bricolage Grotesque", system-ui, sans-serif; font-weight: 800; font-size: 20px; }
+.rn { font-weight: 700; color: var(--cor); }
+.rv { text-align: right; font-weight: 600; }
+.rv small { display: block; font-weight: 400; }
+.tarefas { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-height: 260px; overflow-y: auto; }
+.tarefas li { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-bottom: 1px solid var(--linha); padding-bottom: 8px; font-size: 15px; }
+.tarefas small { display: block; color: var(--mudo); }
+.tarefas button, .sec, .editar {
+  font: inherit; font-size: 14px; font-weight: 600; padding: 7px 12px; border-radius: 8px; border: 1px solid #b9c4cc; background: #fff; color: var(--tinta); cursor: pointer;
+}
+.sec:disabled { opacity: .5; cursor: not-allowed; }
+.editar { border: 0; background: none; color: #1d4ed8; padding: 4px 6px; }
+.lista-topo { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.lista-topo h2 { margin: 0; }
+details.painel summary { cursor: pointer; font-weight: 700; font-family: "Bricolage Grotesque", system-ui, sans-serif; font-size: 18px; }
+details.painel form { margin-top: 14px; }
