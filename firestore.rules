@@ -6,6 +6,7 @@ service cloud.firestore {
       return d.vendedor in ['CAIQUE', 'DANIELLE']
         && d.valor is number && d.valor > 0
         && d.seguro is bool
+        && (!('seguroStatus' in d) || d.seguroStatus in ['sim', 'analise', 'nao'])
         && d.modelo is string && d.modelo.size() > 0 && d.modelo.size() < 100
         && (!('cliente' in d) || (d.cliente is string && d.cliente.size() < 100))
         && (!('telefone' in d) || (d.telefone is string && d.telefone.size() < 30));

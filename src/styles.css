@@ -189,3 +189,18 @@ a.wa:hover { background: #166534; }
   table.cartoes td.acoes-td::before { content: none; }
   .editar, .remover { padding: 10px 14px; border: 1px solid var(--linha); border-radius: 8px; }
 }
+
+/* seguro em 3 estados, subpainéis do formulário */
+.tres { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+.tres button { font: inherit; font-weight: 600; font-size: 14px; padding: 10px 4px; border-radius: 8px; border: 1px solid #b9c4cc; background: #fff; color: var(--tinta); cursor: pointer; }
+.tres button.on { background: var(--cor); border-color: var(--cor); color: #fff; }
+.tres button.on.analise { background: #d97706; border-color: #d97706; }
+.selo.analise { background: #fef3c7; color: #92400e; }
+.subpainel { margin-top: 14px; border-top: 1px solid var(--linha); padding-top: 10px; }
+.subpainel summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.subpainel .campos { margin-top: 10px; }
+.larga { grid-column: 1 / -1; }
+textarea { font: inherit; padding: 10px 12px; border: 1px solid #b9c4cc; border-radius: 8px; width: 100%; resize: vertical; }
+.check { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; margin-top: 12px; font-weight: 500; }
+.check input { width: 20px; min-height: 20px; margin-top: 2px; }
+@media (max-width: 640px) { .tres button { min-height: 48px; } }

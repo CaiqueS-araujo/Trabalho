@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc,
+  addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc,
 } from "firebase/firestore";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -8,13 +8,14 @@ import {
 import { db, firebaseConfigurado } from "./firebase";
 import Importar from "./Importar";
 import {
-  PERFIS, PERIODOS, brl, hoje, mesDe, lerValor, resumo, soma, somaDias, dataBR, noPeriodo, exportarCSV,
-  diasAte, linkWhatsApp, PRAZO_SEGURO,
+  PERFIS, PERIODOS, brl, hoje, mesDe, lerValor, resumo, soma, somaDias, dataBR, noPeriodo, exportarExcel,
+  diasAte, linkWhatsApp, PRAZO_SEGURO, statusSeguro, nomeMoto, EXTRAS_FORM,
 } from "./util";
 
 const COR = { CAIQUE: "#1d4ed8", DANIELLE: "#e11d74", JUNTOS: "#14232b" };
 const COR_SEGURO = "#0f766e";
 const COR_SEM = "#cbd5e1";
+const COR_ANALISE = "#d97706";
 const DEF = { metaLoja: 0, metaCAIQUE: 0, metaDANIELLE: 0, comissao: 0 };
 const PASSOS = [["d7", 7], ["d30", 30], ["d90", 90]];
 const compacto = (v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v);
@@ -82,8 +83,8 @@ export default function App() {
   const modelos = useMemo(() => {
     const m = {};
     for (const v of doPerfil) {
-      const k = v.modelo.trim().toLowerCase();
-      m[k] = m[k] || { nome: v.modelo.trim(), qtd: 0, total: 0 };
+      const k = nomeMoto(v).trim().toLowerCase();
+      m[k] = m[k] || { nome: nomeMoto(v).trim(), qtd: 0, total: 0 };
       m[k].qtd += 1; m[k].total += v.valor;
     }
     return Object.values(m).sort((a, b) => b.qtd - a.qtd || b.total - a.total).slice(0, 5);
@@ -114,21 +115,28 @@ export default function App() {
     return out.sort((a, b) => a.quando.localeCompare(b.quando));
   }, [doVendedor]);
 
-  // Seguro: quem comprou sem seguro tem 30 dias; avisa no dia 7 e no dia 25
+  // Seguro: 30 dias para fechar com preço de moto nova.
+  // Sem seguro: avisa no dia 7 e no dia 25. Em análise: avisa no dia 3, 15 e 25.
+  const PASSOS_SEGURO = { nao: [["s7", 7], ["s25", 25]], analise: [["s3", 3], ["s15", 15], ["s25", 25]] };
   const tarefasSeguro = useMemo(() => {
     const out = [];
     for (const v of doVendedor) {
-      if (v.seguro) continue;
+      const st = statusSeguro(v);
+      if (st === "sim") continue;
       const limite = somaDias(v.data, PRAZO_SEGURO);
       if (limite < hoje()) continue;
-      for (const [k, n] of [["s7", 7], ["s25", 25]]) {
+      for (const [k, n] of PASSOS_SEGURO[st]) {
         if (v.seguroLembrete?.[k]) continue;
-        const quando = somaDias(v.data, n);
-        if (quando <= hoje()) { out.push({ v, k, n, limite }); break; }
+        if (somaDias(v.data, n) <= hoje()) { out.push({ v, k, limite, st }); break; }
       }
     }
     return out.sort((a, b) => a.limite.localeCompare(b.limite));
   }, [doVendedor]);
+
+  // marca como feitos os lembretes que já passaram (ao mudar para "em análise" ou ao avisar)
+  const feitosAte = (v) => Object.fromEntries(
+    ["s3", "s7", "s15", "s25"].filter((k) => Number(k.slice(1)) <= -diasAte(v.data)).map((k) => [`seguroLembrete.${k}`, true])
+  );
 
   function editar(v) {
     setVista(v.vendedor);
@@ -136,7 +144,7 @@ export default function App() {
     setTimeout(() => document.getElementById("form-venda")?.scrollIntoView({ behavior: "smooth" }), 50);
   }
   async function remover(v) {
-    if (!window.confirm(`Excluir a venda "${v.modelo}" de ${v.vendedor}?`)) return;
+    if (!window.confirm(`Excluir a venda "${nomeMoto(v)}" de ${v.vendedor}?`)) return;
     await deleteDoc(doc(db, "vendas", v.id));
     if (editando?.id === v.id) setEditando(null);
   }
@@ -187,6 +195,7 @@ export default function App() {
           <div><dt>Motos vendidas</dt><dd>{stats.qtd}</dd></div>
           <div><dt>Valor médio</dt><dd>{brl.format(stats.ticket)}</dd></div>
           <div><dt>Com seguro</dt><dd>{stats.qtdSeguro} ({stats.pctSeguro}%)</dd></div>
+          <div><dt>Seguro em análise</dt><dd>{stats.qtdAnalise}</dd></div>
           <div><dt>Comissão estimada</dt><dd>{brl.format(comissao(stats.total))}</dd></div>
         </dl>
       </section>
@@ -247,7 +256,7 @@ export default function App() {
               {tarefas.map(({ v, k, n, quando }) => (
                 <li key={v.id + k}>
                   <span>
-                    <b>{v.cliente || "Cliente sem nome"}</b> · {v.modelo}
+                    <b>{v.cliente || "Cliente sem nome"}</b> · {nomeMoto(v)}
                     <small>{n} dias · {quando < hoje() ? "atrasado desde" : "para"} {dataBR(quando)}{vista === "JUNTOS" ? ` · ${v.vendedor}` : ""}</small>
                   </span>
                   <button onClick={() => updateDoc(doc(db, "vendas", v.id), { [`posVenda.${k}`]: true })}>Feito</button>
@@ -260,13 +269,15 @@ export default function App() {
           <h2>Lembrete de seguro</h2>
           {tarefasSeguro.length === 0 ? <Vazio t="Nenhum cliente para avisar sobre o seguro." /> : (
             <ul className="tarefas">
-              {tarefasSeguro.map(({ v, k, limite }) => {
+              {tarefasSeguro.map(({ v, k, limite, st }) => {
                 const link = linkWhatsApp(v);
                 const dias = diasAte(limite);
+                const upd = (d) => updateDoc(doc(db, "vendas", v.id), d);
                 return (
                   <li key={v.id + k}>
                     <span>
-                      <b>{v.cliente || "Cliente sem nome"}</b> · {v.modelo}
+                      <b>{v.cliente || "Cliente sem nome"}</b> · {nomeMoto(v)}{" "}
+                      {st === "analise" && <span className="selo analise">Em análise</span>}
                       <small>
                         Prazo até {dataBR(limite)} ({dias === 0 ? "termina hoje" : `${dias} dias restantes`})
                         {vista === "JUNTOS" ? ` · ${v.vendedor}` : ""}
@@ -276,8 +287,12 @@ export default function App() {
                       {link
                         ? <a className="wa" href={link} target="_blank" rel="noreferrer">WhatsApp</a>
                         : <small>Sem telefone: use Editar</small>}
-                      <button onClick={() => updateDoc(doc(db, "vendas", v.id), { [`seguroLembrete.${k}`]: true })}>Já avisei</button>
-                      <button onClick={() => updateDoc(doc(db, "vendas", v.id), { seguro: true })}>Fechou seguro</button>
+                      <button onClick={() => upd({ [`seguroLembrete.${k}`]: true })}>Já avisei</button>
+                      {st !== "analise" && <button onClick={() => upd({ seguroStatus: "analise", ...feitosAte(v) })}>Em análise</button>}
+                      <button onClick={() => upd({ seguro: true, seguroStatus: "sim" })}>Fechou seguro</button>
+                      {st === "analise" && (
+                        <button onClick={() => upd({ seguroStatus: "nao", "seguroLembrete.s3": true, "seguroLembrete.s7": true, "seguroLembrete.s15": true, "seguroLembrete.s25": true })}>Não quis</button>
+                      )}
                     </span>
                   </li>
                 );
@@ -351,9 +366,9 @@ export default function App() {
           {stats.qtd === 0 ? <Vazio /> : (
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
-                <Pie data={[{ name: "Com seguro", value: stats.qtdSeguro }, { name: "Sem seguro", value: stats.qtd - stats.qtdSeguro }]}
-                  dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2} label={({ value }) => value}>
-                  <Cell fill={COR_SEGURO} /><Cell fill={COR_SEM} />
+                <Pie data={[{ name: "Com seguro", value: stats.qtdSeguro }, { name: "Em análise", value: stats.qtdAnalise }, { name: "Sem seguro", value: stats.qtd - stats.qtdSeguro - stats.qtdAnalise }]}
+                  dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2} label={({ value }) => (value ? value : "")}>
+                  <Cell fill={COR_SEGURO} /><Cell fill={COR_ANALISE} /><Cell fill={COR_SEM} />
                 </Pie>
                 <Tooltip formatter={(v) => `${v} motos`} /><Legend />
               </PieChart>
@@ -365,8 +380,8 @@ export default function App() {
       <section className="painel lista">
         <div className="lista-topo">
           <h2>{vista === "JUNTOS" ? "Todas as vendas" : `Vendas de ${vista}`} ({nomePeriodo})</h2>
-          <button className="sec" disabled={!doPerfil.length} onClick={() => exportarCSV(doPerfil, config.comissao)}>
-            Baixar para Excel
+          <button className="sec" disabled={!doPerfil.length} onClick={() => exportarExcel(doPerfil, config.comissao)}>
+            Baixar planilha (Excel)
           </button>
         </div>
         {carregando ? <p className="mudo">Carregando…</p> : doPerfil.length === 0 ? <Vazio t="Nenhuma venda neste período." /> : (
@@ -384,8 +399,8 @@ export default function App() {
                     <td data-label="Data">{dataBR(v.data)}</td>
                     {vista === "JUNTOS" && <td data-label="Vendedor"><span className="ponto" style={{ background: COR[v.vendedor] }} />{v.vendedor}</td>}
                     <td data-label="Cliente">{v.cliente || "—"}</td>
-                    <td data-label="Moto">{v.modelo}</td>
-                    <td data-label="Seguro"><span className={"selo " + (v.seguro ? "sim" : "nao")}>{v.seguro ? "Com seguro" : "Sem seguro"}</span></td>
+                    <td data-label="Moto">{nomeMoto(v)}</td>
+                    <td data-label="Seguro"><span className={"selo " + statusSeguro(v)}>{{ sim: "Com seguro", analise: "Em análise", nao: "Sem seguro" }[statusSeguro(v)]}</span></td>
                     <td className="num" data-label="Valor">{brl.format(v.valor)}</td>
                     <td className="num" data-label="Comissão">{brl.format(comissao(v.valor))}</td>
                     <td className="num acoes-td">
@@ -448,8 +463,11 @@ function Formulario({ vendedor, editando, onFim }) {
   const [cliente, setCliente] = useState(editando?.cliente || "");
   const [telefone, setTelefone] = useState(editando?.telefone || "");
   const [valorTxt, setValorTxt] = useState(editando ? String(editando.valor).replace(".", ",") : "");
-  const [seguro, setSeguro] = useState(editando?.seguro || false);
+  const [status, setStatus] = useState(editando ? statusSeguro(editando) : "nao");
   const [data, setData] = useState(editando?.data || hoje());
+  const [extra, setExtra] = useState(() => Object.fromEntries(
+    EXTRAS_FORM.map(([, k, , , tipo]) => [k, editando?.[k] == null ? "" : tipo === "numero" ? String(editando[k]).replace(".", ",") : String(editando[k])])
+  ));
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
   const valor = lerValor(valorTxt);
@@ -459,19 +477,38 @@ function Formulario({ vendedor, editando, onFim }) {
     setMsg("");
     if (!modelo.trim() || valor <= 0) { setMsg("Informe a moto e o valor da venda."); return; }
     setSalvando(true);
-    const dados = { modelo: modelo.trim(), cliente: cliente.trim(), telefone: telefone.trim(), valor, seguro, data };
+    const dados = {
+      modelo: modelo.trim(), cliente: cliente.trim(), telefone: telefone.trim(), valor,
+      seguroStatus: status, seguro: status === "sim", data,
+    };
+    for (const [, k, , , tipo] of EXTRAS_FORM) {
+      const t = String(extra[k] || "").trim();
+      const valorCampo = tipo === "numero" ? (lerValor(t) > 0 ? lerValor(t) : "") : t;
+      if (valorCampo === "") { if (editando && editando[k] !== undefined) dados[k] = deleteField(); }
+      else dados[k] = valorCampo;
+    }
     try {
       if (editando) {
         await updateDoc(doc(db, "vendas", editando.id), dados);
         onFim();
       } else {
         await addDoc(collection(db, "vendas"), { ...dados, vendedor, posVenda: {}, criadoEm: serverTimestamp() });
-        setModelo(""); setCliente(""); setTelefone(""); setValorTxt(""); setSeguro(false); setData(hoje());
+        setModelo(""); setCliente(""); setTelefone(""); setValorTxt(""); setStatus("nao"); setData(hoje());
+        setExtra(Object.fromEntries(EXTRAS_FORM.map(([, k]) => [k, ""])));
         setMsg("Venda salva.");
       }
     } catch (err) { console.error(err); setMsg("Não foi possível salvar. Tente de novo."); }
     finally { setSalvando(false); }
   }
+
+  const grupo = (g) => EXTRAS_FORM.filter((x) => x[0] === g).map(([, k, rotulo, ph, tipo]) => (
+    <label key={k} className={tipo === "texto" ? "larga" : ""}>{rotulo}
+      {tipo === "texto"
+        ? <textarea rows={3} value={extra[k]} maxLength={500} onChange={(e) => setExtra({ ...extra, [k]: e.target.value })} />
+        : <input value={extra[k]} placeholder={ph} maxLength={200} inputMode={tipo === "numero" ? "decimal" : undefined}
+            onChange={(e) => setExtra({ ...extra, [k]: e.target.value })} />}
+    </label>
+  ));
 
   return (
     <form id="form-venda" className="painel form" onSubmit={salvar} style={{ "--cor": COR[vendedor] }}>
@@ -484,7 +521,7 @@ function Formulario({ vendedor, editando, onFim }) {
           <input value={telefone} onChange={(e) => setTelefone(e.target.value)} inputMode="tel" placeholder="Ex.: (24) 99999-9999" maxLength={29} />
         </label>
         <label>Moto
-          <input value={modelo} onChange={(e) => setModelo(e.target.value)} placeholder="Ex.: Scooter elétrica 2000W" maxLength={99} />
+          <input value={modelo} onChange={(e) => setModelo(e.target.value)} placeholder="Ex.: Mia" maxLength={99} />
         </label>
         <label>Valor da moto (R$)
           <input value={valorTxt} onChange={(e) => setValorTxt(e.target.value)} inputMode="decimal" placeholder="Ex.: 18.500,00" />
@@ -495,12 +532,25 @@ function Formulario({ vendedor, editando, onFim }) {
         </label>
         <fieldset>
           <legend>Seguro</legend>
-          <div className="duas">
-            <button type="button" className={!seguro ? "on" : ""} onClick={() => setSeguro(false)}>Sem seguro</button>
-            <button type="button" className={seguro ? "on" : ""} onClick={() => setSeguro(true)}>Com seguro</button>
+          <div className="tres">
+            <button type="button" className={status === "nao" ? "on" : ""} onClick={() => setStatus("nao")}>Sem seguro</button>
+            <button type="button" className={status === "analise" ? "on analise" : ""} onClick={() => setStatus("analise")}>Em análise</button>
+            <button type="button" className={status === "sim" ? "on" : ""} onClick={() => setStatus("sim")}>Com seguro</button>
           </div>
         </fieldset>
       </div>
+      <details className="subpainel">
+        <summary>Mais informações da venda (potência, cor, chassi, pagamento…)</summary>
+        <div className="campos">{grupo("venda")}</div>
+      </details>
+      <details className="subpainel">
+        <summary>Dados do cliente (CPF, e-mail, endereço…)</summary>
+        <div className="campos">{grupo("cliente")}</div>
+      </details>
+      <details className="subpainel">
+        <summary>Observações</summary>
+        <div className="campos">{grupo("obs")}</div>
+      </details>
       <div className="acoes">
         <button className="salvar" disabled={salvando}>{salvando ? "Salvando…" : editando ? "Salvar alterações" : "Salvar venda"}</button>
         {editando && <button type="button" className="sec" onClick={onFim}>Cancelar</button>}
