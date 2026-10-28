@@ -6,6 +6,7 @@ import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { db, firebaseConfigurado } from "./firebase";
+import Importar from "./Importar";
 import {
   PERFIS, PERIODOS, brl, hoje, mesDe, lerValor, resumo, soma, somaDias, dataBR, noPeriodo, exportarCSV,
   diasAte, linkWhatsApp, PRAZO_SEGURO,
@@ -19,6 +20,18 @@ const PASSOS = [["d7", 7], ["d30", 30], ["d90", 90]];
 const compacto = (v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v);
 const Vazio = ({ t = "Nenhuma venda registrada ainda." }) => <p className="mudo">{t}</p>;
 
+function useMobile() {
+  const q = "(max-width: 640px)";
+  const [m, setM] = useState(() => window.matchMedia(q).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(q);
+    const f = () => setM(mq.matches);
+    mq.addEventListener("change", f);
+    return () => mq.removeEventListener("change", f);
+  }, []);
+  return m;
+}
+
 export default function App() {
   const [vendas, setVendas] = useState([]);
   const [config, setConfig] = useState(DEF);
@@ -27,6 +40,7 @@ export default function App() {
   const [vista, setVista] = useState("JUNTOS");
   const [periodo, setPeriodo] = useState("mes");
   const [editando, setEditando] = useState(null);
+  const mobile = useMobile();
 
   useEffect(() => {
     if (!db) { setCarregando(false); return; }
@@ -274,6 +288,7 @@ export default function App() {
       </section>
 
       <MetasForm key={JSON.stringify(config)} config={config} />
+      <Importar key={vista} vendas={vendas} vista={vista} />
 
       {vista !== "JUNTOS" && (
         <Formulario key={editando?.id || "novo"} vendedor={vista} editando={editando} onFim={() => setEditando(null)} />
@@ -322,7 +337,8 @@ export default function App() {
               <BarChart data={modelos} layout="vertical" margin={{ left: 8 }}>
                 <CartesianGrid horizontal={false} stroke="#e2e8f0" />
                 <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
-                <YAxis type="category" dataKey="nome" width={130} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="nome" width={mobile ? 92 : 130} tickLine={false} axisLine={false}
+                  tickFormatter={(t) => (t.length > (mobile ? 13 : 20) ? t.slice(0, mobile ? 12 : 19) + "…" : t)} />
                 <Tooltip formatter={(v, n, p) => [`${v} motos (${brl.format(p.payload.total)})`, "Vendidas"]} cursor={{ fill: "#f1f5f9" }} />
                 <Bar dataKey="qtd" fill={COR[vista]} radius={[0, 6, 6, 0]} />
               </BarChart>
@@ -355,7 +371,7 @@ export default function App() {
         </div>
         {carregando ? <p className="mudo">Carregando…</p> : doPerfil.length === 0 ? <Vazio t="Nenhuma venda neste período." /> : (
           <div className="tabela-rolagem">
-            <table>
+            <table className="cartoes">
               <thead>
                 <tr>
                   <th>Data</th>{vista === "JUNTOS" && <th>Vendedor</th>}<th>Cliente</th><th>Moto</th><th>Seguro</th>
@@ -365,14 +381,14 @@ export default function App() {
               <tbody>
                 {doPerfil.map((v) => (
                   <tr key={v.id}>
-                    <td>{dataBR(v.data)}</td>
-                    {vista === "JUNTOS" && <td><span className="ponto" style={{ background: COR[v.vendedor] }} />{v.vendedor}</td>}
-                    <td>{v.cliente || "—"}</td>
-                    <td>{v.modelo}</td>
-                    <td><span className={"selo " + (v.seguro ? "sim" : "nao")}>{v.seguro ? "Com seguro" : "Sem seguro"}</span></td>
-                    <td className="num">{brl.format(v.valor)}</td>
-                    <td className="num">{brl.format(comissao(v.valor))}</td>
-                    <td className="num">
+                    <td data-label="Data">{dataBR(v.data)}</td>
+                    {vista === "JUNTOS" && <td data-label="Vendedor"><span className="ponto" style={{ background: COR[v.vendedor] }} />{v.vendedor}</td>}
+                    <td data-label="Cliente">{v.cliente || "—"}</td>
+                    <td data-label="Moto">{v.modelo}</td>
+                    <td data-label="Seguro"><span className={"selo " + (v.seguro ? "sim" : "nao")}>{v.seguro ? "Com seguro" : "Sem seguro"}</span></td>
+                    <td className="num" data-label="Valor">{brl.format(v.valor)}</td>
+                    <td className="num" data-label="Comissão">{brl.format(comissao(v.valor))}</td>
+                    <td className="num acoes-td">
                       <button className="editar" onClick={() => editar(v)}>Editar</button>
                       <button className="remover" onClick={() => remover(v)}>Excluir</button>
                     </td>
