@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc,
 } from "firebase/firestore";
@@ -7,12 +7,13 @@ import {
 } from "recharts";
 import { db, firebaseConfigurado } from "./firebase";
 import Importar from "./Importar";
+import AoVivo from "./AoVivo";
 import {
   PERFIS, PERIODOS, brl, hoje, mesDe, lerValor, resumo, soma, somaDias, dataBR, noPeriodo, exportarExcel,
   diasAte, linkWhatsApp, PRAZO_SEGURO, statusSeguro, nomeMoto, EXTRAS_FORM,
 } from "./util";
 
-const COR = { CAIQUE: "#1d4ed8", DANIELLE: "#e11d74", JUNTOS: "#14232b" };
+const COR = { CAIQUE: "#1d4ed8", DANIELLE: "#e11d74", JUNTOS: "#14232b", ADM: "#6d28d9" };
 const COR_SEGURO = "#0f766e";
 const COR_SEM = "#cbd5e1";
 const COR_ANALISE = "#d97706";
@@ -42,6 +43,9 @@ export default function App() {
   const [periodo, setPeriodo] = useState("mes");
   const [editando, setEditando] = useState(null);
   const mobile = useMobile();
+  const juntos = juntos || vista === "ADM"; // Giovana ADM vê tudo, como o Juntos
+  const [rascunhos, setRascunhos] = useState({});
+  const idsIniciais = useRef(null);
 
   useEffect(() => {
     if (!db) { setCarregando(false); return; }
@@ -51,15 +55,28 @@ export default function App() {
       setCarregando(false);
     };
     const u1 = onSnapshot(query(collection(db, "vendas"), orderBy("data", "desc")), (s) => {
-      setVendas(s.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const lista = s.docs.map((d) => {
+        const x = d.data({ serverTimestamps: "estimate" });
+        return { id: d.id, ...x, criadoMs: x.criadoEm?.toMillis ? x.criadoEm.toMillis() : 0 };
+      });
+      if (!idsIniciais.current) idsIniciais.current = new Set(lista.map((v) => v.id)); // o que já existia ao abrir
+      setVendas(lista);
       setCarregando(false);
     }, falha);
     const u2 = onSnapshot(doc(db, "config", "geral"), (s) => setConfig({ ...DEF, ...(s.data() || {}) }), falha);
-    return () => { u1(); u2(); };
+    const u3 = onSnapshot(collection(db, "rascunhos"), (s) => {
+      const o = {};
+      s.forEach((d) => {
+        const x = d.data({ serverTimestamps: "estimate" });
+        o[d.id] = { ...x, ms: x.atualizadoEm?.toMillis ? x.atualizadoEm.toMillis() : Date.now() };
+      });
+      setRascunhos(o);
+    }, (e) => console.error("rascunhos:", e));
+    return () => { u1(); u2(); u3(); };
   }, []);
 
   const doVendedor = useMemo(
-    () => (vista === "JUNTOS" ? vendas : vendas.filter((v) => v.vendedor === vista)),
+    () => (juntos ? vendas : vendas.filter((v) => v.vendedor === vista)),
     [vendas, vista]
   );
   const doPerfil = useMemo(() => doVendedor.filter((v) => noPeriodo(v, periodo)), [doVendedor, periodo]);
@@ -94,7 +111,7 @@ export default function App() {
   const mesAtual = soma(doVendedor.filter((v) => v.data.startsWith(mesDe(0))));
   const mesAnt = soma(doVendedor.filter((v) => v.data.startsWith(mesDe(-1))));
   const variacao = mesAnt > 0 ? Math.round(((mesAtual - mesAnt) / mesAnt) * 100) : null;
-  const meta = vista === "JUNTOS" ? config.metaLoja : config["meta" + vista];
+  const meta = juntos ? config.metaLoja : config["meta" + vista];
   const pctMeta = meta > 0 ? Math.min(100, Math.round((mesAtual / meta) * 100)) : 0;
   const ranking = PERFIS.map((p) => {
     const l = vendas.filter((v) => v.vendedor === p && v.data.startsWith(mesDe(0)));
@@ -167,16 +184,18 @@ export default function App() {
       <header className="topo">
         <p className="marca">Vendas de motos</p>
         <nav className="abas" aria-label="Perfis">
-          {["JUNTOS", ...PERFIS].map((p) => (
+          {["JUNTOS", ...PERFIS, "ADM"].map((p) => (
             <button key={p} className={"aba" + (vista === p ? " ativa" : "")} style={{ "--cor": COR[p] }}
               onClick={() => { setVista(p); setEditando(null); }} aria-pressed={vista === p}>
-              {p === "JUNTOS" ? "Juntos" : p}
+              {p === "JUNTOS" ? "Juntos" : p === "ADM" ? "Giovana ADM" : p}
             </button>
           ))}
         </nav>
       </header>
 
       {erro && <p className="erro" role="alert">{erro}</p>}
+
+      {vista === "ADM" && <AoVivo rascunhos={rascunhos} vendas={vendas} idsIniciais={idsIniciais.current} />}
 
       <div className="filtro">
         <label>Período
@@ -188,7 +207,7 @@ export default function App() {
 
       <section className="hero" style={{ "--cor": COR[vista] }}>
         <p className="hero-rotulo">
-          {vista === "JUNTOS" ? "Total vendido pelos dois" : `Total vendido por ${vista}`} ({nomePeriodo})
+          {juntos ? "Total vendido pelos dois" : `Total vendido por ${vista}`} ({nomePeriodo})
         </p>
         <p className="hero-valor">{brl.format(stats.total)}</p>
         <dl className="numeros">
@@ -200,7 +219,7 @@ export default function App() {
         </dl>
       </section>
 
-      {vista === "JUNTOS" && (
+      {juntos && (
         <section className="duelo">
           {PERFIS.map((p) => {
             const parte = stats.total ? (porPessoa[p].total / stats.total) * 100 : 0;
@@ -227,7 +246,7 @@ export default function App() {
           </p>
           {meta > 0 ? (
             <>
-              <p className="meta-txt">Meta {vista === "JUNTOS" ? "da loja" : "de " + vista}: {brl.format(meta)} · {pctMeta}%</p>
+              <p className="meta-txt">Meta {juntos ? "da loja" : "de " + vista}: {brl.format(meta)} · {pctMeta}%</p>
               <span className="barra"><span style={{ width: `${pctMeta}%` }} /></span>
               <p className="mudo">{mesAtual >= meta ? "Meta batida." : `Faltam ${brl.format(meta - mesAtual)}.`}</p>
             </>
@@ -257,7 +276,7 @@ export default function App() {
                 <li key={v.id + k}>
                   <span>
                     <b>{v.cliente || "Cliente sem nome"}</b> · {nomeMoto(v)}
-                    <small>{n} dias · {quando < hoje() ? "atrasado desde" : "para"} {dataBR(quando)}{vista === "JUNTOS" ? ` · ${v.vendedor}` : ""}</small>
+                    <small>{n} dias · {quando < hoje() ? "atrasado desde" : "para"} {dataBR(quando)}{juntos ? ` · ${v.vendedor}` : ""}</small>
                   </span>
                   <button onClick={() => updateDoc(doc(db, "vendas", v.id), { [`posVenda.${k}`]: true })}>Feito</button>
                 </li>
@@ -280,7 +299,7 @@ export default function App() {
                       {st === "analise" && <span className="selo analise">Em análise</span>}
                       <small>
                         Prazo até {dataBR(limite)} ({dias === 0 ? "termina hoje" : `${dias} dias restantes`})
-                        {vista === "JUNTOS" ? ` · ${v.vendedor}` : ""}
+                        {juntos ? ` · ${v.vendedor}` : ""}
                       </small>
                     </span>
                     <span className="btns">
@@ -305,12 +324,12 @@ export default function App() {
       <MetasForm key={JSON.stringify(config)} config={config} />
       <Importar key={vista} vendas={vendas} vista={vista} />
 
-      {vista !== "JUNTOS" && (
+      {!juntos && (
         <Formulario key={editando?.id || "novo"} vendedor={vista} editando={editando} onFim={() => setEditando(null)} />
       )}
 
       <section className="graficos">
-        {vista === "JUNTOS" && (
+        {juntos && (
           <div className="painel">
             <h2>Total vendido por pessoa</h2>
             <ResponsiveContainer width="100%" height={240}>
@@ -336,8 +355,8 @@ export default function App() {
                 <XAxis dataKey="mes" tickLine={false} axisLine={false} />
                 <YAxis tickFormatter={compacto} tickLine={false} axisLine={false} width={48} />
                 <Tooltip formatter={(v) => brl.format(v)} cursor={{ fill: "#f1f5f9" }} />
-                {vista === "JUNTOS" && <Legend />}
-                {(vista === "JUNTOS" ? PERFIS : [vista]).map((p) => (
+                {juntos && <Legend />}
+                {(juntos ? PERFIS : [vista]).map((p) => (
                   <Bar key={p} dataKey={p} name={p} fill={COR[p]} radius={[4, 4, 0, 0]} />
                 ))}
               </BarChart>
@@ -379,7 +398,7 @@ export default function App() {
 
       <section className="painel lista">
         <div className="lista-topo">
-          <h2>{vista === "JUNTOS" ? "Todas as vendas" : `Vendas de ${vista}`} ({nomePeriodo})</h2>
+          <h2>{juntos ? "Todas as vendas" : `Vendas de ${vista}`} ({nomePeriodo})</h2>
           <button className="sec" disabled={!doPerfil.length} onClick={() => exportarExcel(doPerfil, config.comissao)}>
             Baixar planilha (Excel)
           </button>
@@ -389,7 +408,7 @@ export default function App() {
             <table className="cartoes">
               <thead>
                 <tr>
-                  <th>Data</th>{vista === "JUNTOS" && <th>Vendedor</th>}<th>Cliente</th><th>Moto</th><th>Seguro</th>
+                  <th>Data</th>{juntos && <th>Vendedor</th>}<th>Cliente</th><th>Moto</th><th>Seguro</th>
                   <th className="num">Valor</th><th className="num">Comissão</th><th><span className="sr">Ações</span></th>
                 </tr>
               </thead>
@@ -397,7 +416,7 @@ export default function App() {
                 {doPerfil.map((v) => (
                   <tr key={v.id}>
                     <td data-label="Data">{dataBR(v.data)}</td>
-                    {vista === "JUNTOS" && <td data-label="Vendedor"><span className="ponto" style={{ background: COR[v.vendedor] }} />{v.vendedor}</td>}
+                    {juntos && <td data-label="Vendedor"><span className="ponto" style={{ background: COR[v.vendedor] }} />{v.vendedor}</td>}
                     <td data-label="Cliente">{v.cliente || "—"}</td>
                     <td data-label="Moto">{nomeMoto(v)}</td>
                     <td data-label="Seguro"><span className={"selo " + statusSeguro(v)}>{{ sim: "Com seguro", analise: "Em análise", nao: "Sem seguro" }[statusSeguro(v)]}</span></td>
@@ -471,6 +490,26 @@ function Formulario({ vendedor, editando, onFim }) {
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
   const valor = lerValor(valorTxt);
+
+  // Mostra para a administração, em tempo real, o que está sendo preenchido (só cliente, moto, valor e seguro)
+  useEffect(() => {
+    if (editando) return;
+    const vazio = !cliente.trim() && !modelo.trim() && !valorTxt.trim();
+    const t = setTimeout(() => {
+      const ref = doc(db, "rascunhos", vendedor);
+      if (vazio) deleteDoc(ref).catch(() => {});
+      else {
+        setDoc(ref, {
+          vendedor, cliente: cliente.trim().slice(0, 99), modelo: modelo.trim().slice(0, 99),
+          valor, seguroStatus: status, atualizadoEm: serverTimestamp(),
+        }).catch(() => {});
+      }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [cliente, modelo, valorTxt, status, editando, vendedor]);
+  useEffect(() => () => {
+    if (!editando) deleteDoc(doc(db, "rascunhos", vendedor)).catch(() => {});
+  }, [editando, vendedor]);
 
   async function salvar(e) {
     e.preventDefault();

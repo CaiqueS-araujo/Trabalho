@@ -24,7 +24,7 @@ export default function Importar({ vendas, vista }) {
   const [cab, setCab] = useState([]);
   const [linhas, setLinhas] = useState([]);
   const [mapa, setMapa] = useState({});
-  const [padrao, setPadrao] = useState(vista === "JUNTOS" ? "" : vista);
+  const [padrao, setPadrao] = useState(PERFIS.includes(vista) ? vista : "");
   const [pessoais, setPessoais] = useState(true);
   const [erro, setErro] = useState("");
   const [resultado, setResultado] = useState("");

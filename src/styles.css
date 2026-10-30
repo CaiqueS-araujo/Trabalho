@@ -204,3 +204,23 @@ textarea { font: inherit; padding: 10px 12px; border: 1px solid #b9c4cc; border-
 .check { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; margin-top: 12px; font-weight: 500; }
 .check input { width: 20px; min-height: 20px; margin-top: 2px; }
 @media (max-width: 640px) { .tres button { min-height: 48px; } }
+
+/* Giovana ADM: painel ao vivo */
+.aovivo h3 { margin: 18px 0 8px; font-size: 16px; }
+.vivos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; margin-top: 8px; }
+.vivo { border: 1px solid var(--linha); border-left: 6px solid var(--cor); border-radius: 12px; padding: 12px 14px; }
+.vivo.ativo { background: #f0fdf4; border-color: #86efac; border-left-color: var(--cor); }
+.vivo-nome { margin: 0; font-weight: 700; color: var(--cor); display: flex; align-items: center; gap: 8px; }
+.vivo-status { margin: 2px 0 8px; font-size: 14px; color: #166534; font-weight: 600; }
+.vivo-dados { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.vivo-dados dt { font-size: 12px; color: var(--mudo); }
+.vivo-dados dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.pulso { width: 10px; height: 10px; border-radius: 50%; background: #16a34a; animation: pulsar 1.4s ease-in-out infinite; }
+@keyframes pulsar { 0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, .5); } 50% { box-shadow: 0 0 0 7px rgba(22, 163, 74, 0); } }
+.recentes { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.recentes li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--linha); }
+.rec-txt { flex: 1; min-width: 0; }
+.rec-txt small { display: block; color: var(--mudo); }
+.rec-valor { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nova { margin-left: 8px; background: #16a34a; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+@media (max-width: 640px) { .aba { font-size: 13px; padding: 8px 2px; line-height: 1.15; } }

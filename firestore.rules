@@ -30,5 +30,14 @@ service cloud.firestore {
         && request.resource.data.comissao is number
         && request.resource.data.comissao >= 0 && request.resource.data.comissao <= 100;
     }
+
+    // Prévia ao vivo do que CAIQUE e DANIELLE estão preenchendo (some quando salvam)
+    match /rascunhos/{id} {
+      allow read: if true;
+      allow create, update: if id in ['CAIQUE', 'DANIELLE']
+        && request.resource.data.keys().hasOnly(['vendedor', 'cliente', 'modelo', 'valor', 'seguroStatus', 'atualizadoEm'])
+        && request.resource.data.vendedor == id;
+      allow delete: if id in ['CAIQUE', 'DANIELLE'];
+    }
   }
 }
