@@ -43,7 +43,7 @@ export default function App() {
   const [periodo, setPeriodo] = useState("mes");
   const [editando, setEditando] = useState(null);
   const mobile = useMobile();
-  const juntos = juntos || vista === "ADM"; // Giovana ADM vê tudo, como o Juntos
+  const juntos = vista === "JUNTOS" || vista === "ADM"; // Giovana ADM vê tudo, como o Juntos
   const [rascunhos, setRascunhos] = useState({});
   const idsIniciais = useRef(null);
 
